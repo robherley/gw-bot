@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+export GOOSE_DRIVER=sqlite3
+export GOOSE_DBSTRING=./gwb.db
+export GOOSE_MIGRATION_DIR=database/migrations
+
+if ! command -v goose &> /dev/null
+then
+  echo "goose could not be found, please install it first."
+  echo "https://github.com/pressly/goose"
+  exit 1
+fi
+
+goose "$@"
