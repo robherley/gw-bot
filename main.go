@@ -15,6 +15,8 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/robherley/gw-bot/internal/bot"
 	"github.com/robherley/gw-bot/internal/db"
+	"github.com/robherley/gw-bot/internal/gw"
+	"github.com/robherley/gw-bot/internal/looper"
 )
 
 //go:embed database/migrations/*.sql
@@ -72,7 +74,9 @@ func run() error {
 		return err
 	}
 
-	bot, err := bot.New(cfg.DiscordToken, db)
+	gw := gw.New()
+
+	bot, err := bot.New(ctx, cfg.DiscordToken, db, gw)
 	if err != nil {
 		return err
 	}
@@ -104,9 +108,10 @@ func run() error {
 
 	slog.Info("github.com/robherley/gw-bot is initialized")
 
-	// l := looper.New(db, bot)
-	// go l.Notify(ctx)
-	// go l.Cleanup(ctx)
+	l := looper.New(db, bot, gw)
+	go l.Cleanup(ctx)
+	go l.NotifyEndingSoonItems(ctx)
+	go l.NotifyNewItems(ctx)
 
 	wait()
 	return nil

@@ -17,11 +17,12 @@ CREATE TABLE items (
   subscription_id TEXT NOT NULL,
   goodwill_id INTEGER NOT NULL,
   created_at DATETIME NOT NULL,
-  auction_end_at DATETIME NOT NULL
+  started_at DATETIME NOT NULL,
+  ends_at DATETIME NOT NULL,
+  sent_final BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE INDEX idx_subscription_id_goodwill_id ON items(subscription_id, goodwill_id);
-CREATE INDEX idx_created_at ON items(created_at);
-CREATE INDEX idx_auction_end_at ON items(auction_end_at);
+CREATE INDEX idx_ends_at_sent_final ON items(ends_at, sent_final);
 -- +goose StatementEnd
 
 -- +goose Down
@@ -33,6 +34,6 @@ DROP TABLE IF EXISTS subscriptions;
 DROP INDEX IF EXISTS idx_subscription_id;
 DROP INDEX IF EXISTS idx_goodwill_id;
 DROP INDEX IF EXISTS idx_created_at;
-DROP INDEX IF EXISTS idx_auction_end_at;
+DROP INDEX IF EXISTS idx_ends_at;
 DROP TABLE IF EXISTS items;
 -- +goose StatementEnd

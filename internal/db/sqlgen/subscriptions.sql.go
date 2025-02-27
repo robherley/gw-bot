@@ -71,6 +71,63 @@ func (q *Queries) DeleteUserSubscriptions(ctx context.Context, arg DeleteUserSub
 	return err
 }
 
+const findSubscription = `-- name: FindSubscription :one
+SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at FROM subscriptions
+WHERE id = ?
+`
+
+func (q *Queries) FindSubscription(ctx context.Context, id string) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, findSubscription, id)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Term,
+		&i.MinPrice,
+		&i.MaxPrice,
+		&i.CategoryID,
+		&i.LastNotifiedAt,
+	)
+	return i, err
+}
+
+const findSubscriptionsToNotify = `-- name: FindSubscriptionsToNotify :many
+SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at FROM subscriptions
+WHERE last_notified_at < datetime('now', '-5 minutes')
+LIMIT 100
+`
+
+func (q *Queries) FindSubscriptionsToNotify(ctx context.Context) ([]Subscription, error) {
+	rows, err := q.db.QueryContext(ctx, findSubscriptionsToNotify)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Subscription
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Term,
+			&i.MinPrice,
+			&i.MaxPrice,
+			&i.CategoryID,
+			&i.LastNotifiedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findUserSubscriptions = `-- name: FindUserSubscriptions :many
 SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at FROM subscriptions
 WHERE user_id = ?
@@ -105,4 +162,15 @@ func (q *Queries) FindUserSubscriptions(ctx context.Context, userID string) ([]S
 		return nil, err
 	}
 	return items, nil
+}
+
+const setSubscriptionLastNotifiedAt = `-- name: SetSubscriptionLastNotifiedAt :exec
+UPDATE subscriptions
+SET last_notified_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+func (q *Queries) SetSubscriptionLastNotifiedAt(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, setSubscriptionLastNotifiedAt, id)
+	return err
 }

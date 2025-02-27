@@ -7,20 +7,22 @@ package sqlgen
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
 const createItem = `-- name: CreateItem :one
-INSERT INTO items (id, subscription_id, goodwill_id, created_at, auction_end_at)
-VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-RETURNING id, subscription_id, goodwill_id, created_at, auction_end_at
+INSERT INTO items (id, subscription_id, goodwill_id, created_at, started_at, ends_at)
+VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+RETURNING id, subscription_id, goodwill_id, created_at, started_at, ends_at, sent_final
 `
 
 type CreateItemParams struct {
 	ID             string
 	SubscriptionID string
 	GoodwillID     int64
-	AuctionEndAt   time.Time
+	StartedAt      time.Time
+	EndsAt         time.Time
 }
 
 func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, error) {
@@ -28,7 +30,8 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 		arg.ID,
 		arg.SubscriptionID,
 		arg.GoodwillID,
-		arg.AuctionEndAt,
+		arg.StartedAt,
+		arg.EndsAt,
 	)
 	var i Item
 	err := row.Scan(
@@ -36,13 +39,29 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 		&i.SubscriptionID,
 		&i.GoodwillID,
 		&i.CreatedAt,
-		&i.AuctionEndAt,
+		&i.StartedAt,
+		&i.EndsAt,
+		&i.SentFinal,
 	)
 	return i, err
 }
 
+const deleteExpiredItems = `-- name: DeleteExpiredItems :one
+DELETE FROM items
+WHERE ends_at < datetime('now', '-1 day')
+LIMIT 1000
+RETURNING COUNT(*)
+`
+
+func (q *Queries) DeleteExpiredItems(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deleteExpiredItems)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const findItemInSubscription = `-- name: FindItemInSubscription :one
-SELECT id, subscription_id, goodwill_id, created_at, auction_end_at FROM items
+SELECT id, subscription_id, goodwill_id, created_at, started_at, ends_at, sent_final FROM items
 WHERE subscription_id = ? AND goodwill_id = ?
 `
 
@@ -59,18 +78,21 @@ func (q *Queries) FindItemInSubscription(ctx context.Context, arg FindItemInSubs
 		&i.SubscriptionID,
 		&i.GoodwillID,
 		&i.CreatedAt,
-		&i.AuctionEndAt,
+		&i.StartedAt,
+		&i.EndsAt,
+		&i.SentFinal,
 	)
 	return i, err
 }
 
 const findItemsEndingSoon = `-- name: FindItemsEndingSoon :many
-SELECT id, subscription_id, goodwill_id, created_at, auction_end_at FROM items
-WHERE auction_end_at < ?
+SELECT id, subscription_id, goodwill_id, created_at, started_at, ends_at, sent_final FROM items
+WHERE ends_at < datetime('now', '+5 minutes') AND sent_final = FALSE
+LIMIT 100
 `
 
-func (q *Queries) FindItemsEndingSoon(ctx context.Context, auctionEndAt time.Time) ([]Item, error) {
-	rows, err := q.db.QueryContext(ctx, findItemsEndingSoon, auctionEndAt)
+func (q *Queries) FindItemsEndingSoon(ctx context.Context) ([]Item, error) {
+	rows, err := q.db.QueryContext(ctx, findItemsEndingSoon)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +105,9 @@ func (q *Queries) FindItemsEndingSoon(ctx context.Context, auctionEndAt time.Tim
 			&i.SubscriptionID,
 			&i.GoodwillID,
 			&i.CreatedAt,
-			&i.AuctionEndAt,
+			&i.StartedAt,
+			&i.EndsAt,
+			&i.SentFinal,
 		); err != nil {
 			return nil, err
 		}
@@ -96,4 +120,25 @@ func (q *Queries) FindItemsEndingSoon(ctx context.Context, auctionEndAt time.Tim
 		return nil, err
 	}
 	return items, nil
+}
+
+const setItemSentFinal = `-- name: SetItemSentFinal :exec
+UPDATE items
+SET sent_final = TRUE
+WHERE id IN (/*SLICE:ids*/?)
+`
+
+func (q *Queries) SetItemSentFinal(ctx context.Context, ids []string) error {
+	query := setItemSentFinal
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
 }

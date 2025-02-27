@@ -13,7 +13,9 @@ type Item struct {
 	SubscriptionID string
 	GoodwillID     int64
 	CreatedAt      time.Time
-	AuctionEndAt   time.Time
+	StartedAt      time.Time
+	EndsAt         time.Time
+	SentFinal      bool
 }
 
 type Subscription struct {

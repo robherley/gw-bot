@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/robherley/gw-bot/internal/db"
 )
 
@@ -40,8 +39,6 @@ func (cmd *Subscriptions) Handle(ctx context.Context, s *discordgo.Session, i *d
 	if err != nil {
 		return err
 	}
-
-	spew.Dump(subs)
 
 	builder := strings.Builder{}
 	builder.WriteString("You have ")

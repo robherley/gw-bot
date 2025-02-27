@@ -112,7 +112,7 @@ func (cmd *Unsubscribe) Handle(ctx context.Context, s *discordgo.Session, i *dis
 
 		for _, sub := range deleted {
 			builder.WriteString("- \"")
-			builder.WriteString(sub.ID)
+			builder.WriteString(sub.Term)
 			builder.WriteString("\"\n")
 		}
 

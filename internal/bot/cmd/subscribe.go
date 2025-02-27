@@ -10,15 +10,16 @@ import (
 	"github.com/mattn/go-sqlite3"
 	"github.com/robherley/gw-bot/internal/db"
 	"github.com/robherley/gw-bot/internal/db/sqlgen"
+	"github.com/robherley/gw-bot/internal/gw"
 )
 
-func NewSubscribe(db db.DB) Handler {
-	return &Subscribe{db, nil}
+func NewSubscribe(db db.DB, gw *gw.Client) Handler {
+	return &Subscribe{db, gw}
 }
 
 type Subscribe struct {
-	db   db.DB
-	opts []discordgo.SelectMenuOption
+	db db.DB
+	gw *gw.Client
 }
 
 func (cmd *Subscribe) Name() string {
@@ -118,7 +119,8 @@ func (cmd *Subscribe) Handle(ctx context.Context, s *discordgo.Session, i *disco
 			return err
 		}
 
-		slog.Info("created subscription", "subscription_id", sub.ID, "user_id", sub.UserID)
+		log := slog.With("subscription_id", sub.ID, "user_id", sub.UserID)
+		log.Info("created subscription")
 
 		msg := fmt.Sprintf("🔔 Subscribed for term: %q\n", term)
 		if sub.MinPrice != nil || sub.MaxPrice != nil {
@@ -142,6 +144,13 @@ func (cmd *Subscribe) Handle(ctx context.Context, s *discordgo.Session, i *disco
 			return err
 		}
 
+		n, err := cmd.seedItems(ctx, sub)
+		if err != nil {
+			log.Error("failed to seed items", "error", err)
+		}
+
+		log.Info("seeded items", "count", n)
+
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -151,4 +160,37 @@ func (cmd *Subscribe) Handle(ctx context.Context, s *discordgo.Session, i *disco
 	default:
 		return nil
 	}
+}
+
+func (cmd *Subscribe) seedItems(ctx context.Context, sub sqlgen.Subscription) (int, error) {
+	opts := gw.SearchOptionsFromSubscription(sub)
+
+	items := map[int64]gw.Item{}
+
+	newestItems, err := cmd.gw.Search(ctx, sub.Term, append(opts, gw.WithDescending(true))...)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, item := range newestItems {
+		items[item.ItemID] = item
+	}
+
+	endingSoonItems, err := cmd.gw.Search(ctx, sub.Term, append(opts, gw.WithDescending(false))...)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, item := range endingSoonItems {
+		items[item.ItemID] = item
+	}
+
+	for _, item := range items {
+		_, err := cmd.db.CreateItem(ctx, item.NewCreateItemParams(sub))
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return len(items), nil
 }

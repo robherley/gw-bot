@@ -2,12 +2,17 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strconv"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/robherley/gw-bot/internal/bot/cmd"
 	"github.com/robherley/gw-bot/internal/db"
+	"github.com/robherley/gw-bot/internal/db/sqlgen"
+	"github.com/robherley/gw-bot/internal/gw"
 )
 
 // MaxMessagesPerNotify is the maximum number of messages to send in a single notify.
@@ -15,13 +20,14 @@ import (
 const MaxMessagesPerNotify = 10
 
 type Bot struct {
-	DB db.DB
-
+	db       db.DB
+	gw       *gw.Client
+	ctx      context.Context
 	session  *discordgo.Session
 	handlers map[string]cmd.Handler
 }
 
-func New(token string, db db.DB) (*Bot, error) {
+func New(ctx context.Context, token string, db db.DB, gw *gw.Client) (*Bot, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
 		return nil, err
@@ -30,16 +36,21 @@ func New(token string, db db.DB) (*Bot, error) {
 	session.UserAgent = "github.com/robherley/gw-bot (https://github.com/robherley/gw-bot)"
 
 	b := &Bot{
-		DB:      db,
+		db:      db,
+		gw:      gw,
+		ctx:     ctx,
 		session: session,
 	}
 
-	b.handlers = buildHandlers(
+	b.handlers = make(map[string]cmd.Handler)
+	for _, handler := range []cmd.Handler{
 		cmd.NewPing(),
-		cmd.NewSubscribe(db),
+		cmd.NewSubscribe(db, gw),
 		cmd.NewUnsubscribe(db),
 		cmd.NewSubscriptions(db),
-	)
+	} {
+		b.handlers[handler.Name()] = handler
+	}
 
 	return b, nil
 }
@@ -55,7 +66,6 @@ func (b *Bot) Start() (err error) {
 
 	b.session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		log := LogWith(i, "interaction_type", i.Type.String())
-		ctx := context.Background()
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -72,7 +82,7 @@ func (b *Bot) Start() (err error) {
 			}
 
 			log.Info("invoking command")
-			if err := handler.Handle(ctx, s, i); err != nil {
+			if err := handler.Handle(b.ctx, s, i); err != nil {
 				log.Error("failed", "err", err)
 			}
 		case discordgo.InteractionMessageComponent:
@@ -87,7 +97,7 @@ func (b *Bot) Start() (err error) {
 			}
 
 			log.Info("invoking command")
-			if err := handler.Handle(ctx, s, i); err != nil {
+			if err := handler.Handle(b.ctx, s, i); err != nil {
 				log.Error("failed", "err", err)
 			}
 		default:
@@ -100,10 +110,6 @@ func (b *Bot) Start() (err error) {
 
 func (b *Bot) Close() error {
 	return b.session.Close()
-}
-
-func (b *Bot) NotifyNewItems() error {
-	return nil
 }
 
 func (b *Bot) Unregister(guild string) error {
@@ -160,10 +166,116 @@ func (b *Bot) Register(guild string) error {
 	return nil
 }
 
-func buildHandlers(handlers ...cmd.Handler) map[string]cmd.Handler {
-	m := make(map[string]cmd.Handler, len(handlers))
-	for _, h := range handlers {
-		m[h.Name()] = h
+func (b *Bot) NotifyNewItems(sub sqlgen.Subscription, items []gw.Item) error {
+	dm, err := b.session.UserChannelCreate(sub.UserID)
+	if err != nil {
+		return err
 	}
-	return m
+
+	chunks := Chunk(items, MaxMessagesPerNotify)
+	for _, chunk := range chunks {
+		embeds := make([]*discordgo.MessageEmbed, 0, len(chunk))
+		for _, item := range chunk {
+			embeds = append(embeds, b.ItemToEmbed(item))
+		}
+
+		_, err := b.session.ChannelMessageSendComplex(dm.ID, &discordgo.MessageSend{
+			Content: fmt.Sprintf("🔔 New items for %q!", sub.Term),
+			Embeds:  embeds,
+		})
+		if err != nil {
+			return err
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	return nil
+}
+
+func (b *Bot) NotifyEndingSoonItems(sub sqlgen.Subscription, items []sqlgen.Item) error {
+	log := slog.With("subscription_id", sub.ID, "user_id", sub.UserID)
+
+	gwItems := make([]*gw.Item, 0, len(items))
+	for _, item := range items {
+		gwItem, err := b.gw.FindItem(b.ctx, item.GoodwillID)
+		if err != nil {
+			log.Error("failed to find item", "error", err, "goodwill_id", item.GoodwillID)
+			continue
+		}
+
+		gwItems = append(gwItems, gwItem)
+	}
+
+	dm, err := b.session.UserChannelCreate(sub.UserID)
+	if err != nil {
+		return err
+	}
+
+	chunks := Chunk(gwItems, MaxMessagesPerNotify)
+	for _, chunk := range chunks {
+		embeds := make([]*discordgo.MessageEmbed, 0, len(chunk))
+		for _, item := range chunk {
+			embeds = append(embeds, b.ItemToEmbed(*item))
+		}
+
+		_, err := b.session.ChannelMessageSendComplex(dm.ID, &discordgo.MessageSend{
+			Content: fmt.Sprintf("⏰ Items ending soon for %q!", sub.Term),
+			Embeds:  embeds,
+		})
+		if err != nil {
+			return err
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+	return nil
+}
+
+func (b *Bot) ItemToEmbed(item gw.Item) *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title: item.Title,
+		Image: &discordgo.MessageEmbedImage{
+			URL: item.ImageURL,
+		},
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "Current Price",
+				Value:  fmt.Sprintf("$%.2f", item.CurrentPrice),
+				Inline: true,
+			},
+			{
+				Name:   "Ends",
+				Value:  item.RelativeEndTime(),
+				Inline: true,
+			},
+			{
+				Name:   "Bids",
+				Value:  strconv.FormatInt(item.NumBids, 10),
+				Inline: true,
+			},
+			{
+				Name:   "Category",
+				Value:  item.CategoryName,
+				Inline: true,
+			},
+			{
+				Name:   "Kind",
+				Value:  item.Kind(),
+				Inline: true,
+			},
+		},
+		URL: item.URL(),
+	}
+}
+
+func Chunk[T any](slice []T, chunkSize int) [][]T {
+	chunks := make([][]T, 0, (len(slice)+chunkSize-1)/chunkSize)
+
+	for chunkSize < len(slice) {
+		slice, chunks = slice[chunkSize:], append(chunks, slice[0:chunkSize:chunkSize])
+	}
+	chunks = append(chunks, slice)
+
+	return chunks
 }
