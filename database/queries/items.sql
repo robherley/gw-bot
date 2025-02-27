@@ -3,9 +3,12 @@ INSERT INTO items (id, subscription_id, goodwill_id, created_at, started_at, end
 VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
 RETURNING *;
 
--- name: FindItemInSubscription :one
-SELECT * FROM items
-WHERE subscription_id = ? AND goodwill_id = ?;
+-- name: IsItemTracked :one
+SELECT EXISTS (
+  SELECT 1
+  FROM items
+  WHERE subscription_id = ? AND goodwill_id = ?
+) AS is_tracked;
 
 -- name: FindItemsEndingSoon :many
 SELECT * FROM items
@@ -22,3 +25,7 @@ DELETE FROM items
 WHERE ends_at < datetime('now', '-1 day')
 LIMIT 1000
 RETURNING COUNT(*);
+
+-- name: DeleteItemsInSubscriptions :exec
+DELETE FROM items
+WHERE subscription_id IN (sqlc.slice('ids'));

@@ -60,29 +60,24 @@ func (q *Queries) DeleteExpiredItems(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-const findItemInSubscription = `-- name: FindItemInSubscription :one
-SELECT id, subscription_id, goodwill_id, created_at, started_at, ends_at, sent_final FROM items
-WHERE subscription_id = ? AND goodwill_id = ?
+const deleteItemsInSubscriptions = `-- name: DeleteItemsInSubscriptions :exec
+DELETE FROM items
+WHERE subscription_id IN (/*SLICE:ids*/?)
 `
 
-type FindItemInSubscriptionParams struct {
-	SubscriptionID string
-	GoodwillID     int64
-}
-
-func (q *Queries) FindItemInSubscription(ctx context.Context, arg FindItemInSubscriptionParams) (Item, error) {
-	row := q.db.QueryRowContext(ctx, findItemInSubscription, arg.SubscriptionID, arg.GoodwillID)
-	var i Item
-	err := row.Scan(
-		&i.ID,
-		&i.SubscriptionID,
-		&i.GoodwillID,
-		&i.CreatedAt,
-		&i.StartedAt,
-		&i.EndsAt,
-		&i.SentFinal,
-	)
-	return i, err
+func (q *Queries) DeleteItemsInSubscriptions(ctx context.Context, ids []string) error {
+	query := deleteItemsInSubscriptions
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
 }
 
 const findItemsEndingSoon = `-- name: FindItemsEndingSoon :many
@@ -120,6 +115,26 @@ func (q *Queries) FindItemsEndingSoon(ctx context.Context) ([]Item, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const isItemTracked = `-- name: IsItemTracked :one
+SELECT EXISTS (
+  SELECT 1
+  FROM items
+  WHERE subscription_id = ? AND goodwill_id = ?
+) AS is_tracked
+`
+
+type IsItemTrackedParams struct {
+	SubscriptionID string
+	GoodwillID     int64
+}
+
+func (q *Queries) IsItemTracked(ctx context.Context, arg IsItemTrackedParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, isItemTracked, arg.SubscriptionID, arg.GoodwillID)
+	var is_tracked int64
+	err := row.Scan(&is_tracked)
+	return is_tracked, err
 }
 
 const setItemSentFinal = `-- name: SetItemSentFinal :exec

@@ -233,11 +233,8 @@ func (b *Bot) NotifyEndingSoonItems(sub sqlgen.Subscription, items []sqlgen.Item
 }
 
 func (b *Bot) ItemToEmbed(item gw.Item) *discordgo.MessageEmbed {
-	return &discordgo.MessageEmbed{
+	embed := &discordgo.MessageEmbed{
 		Title: item.Title,
-		Image: &discordgo.MessageEmbedImage{
-			URL: item.ImageURL,
-		},
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "Current Price",
@@ -267,6 +264,20 @@ func (b *Bot) ItemToEmbed(item gw.Item) *discordgo.MessageEmbed {
 		},
 		URL: item.URL(),
 	}
+
+	if item.ImageURL != "" {
+		embed.Image = &discordgo.MessageEmbedImage{
+			URL: item.ImageURL,
+		}
+	}
+
+	slog.Info("embedding item",
+		"item_id", item.ItemID,
+		"url", item.URL(),
+		"image_url", item.ImageURL,
+	)
+
+	return embed
 }
 
 func Chunk[T any](slice []T, chunkSize int) [][]T {

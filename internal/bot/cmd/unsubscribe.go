@@ -89,6 +89,10 @@ func (cmd *Unsubscribe) Handle(ctx context.Context, s *discordgo.Session, i *dis
 			return err
 		}
 
+		if err := cmd.db.DeleteItemsInSubscriptions(ctx, subIDs); err != nil {
+			return err
+		}
+
 		if err := cmd.db.DeleteUserSubscriptions(ctx, sqlgen.DeleteUserSubscriptionsParams{
 			UserID: userID,
 			Ids:    subIDs,

@@ -11,7 +11,8 @@ RUN go mod verify
 
 COPY . .
 
-RUN go build
+ARG VERSION
+RUN go build -ldflags "-X github.com/robherley/gw-bot/internal/meta.Version=${VERSION}"
 
 FROM alpine
 

@@ -51,20 +51,36 @@ func (l *Looper) NotifyNewItems(ctx context.Context) {
 
 				log := log.With("subscription_id", sub.ID, "user_id", sub.UserID)
 
-				items, err := l.gw.Search(ctx, sub.Term, opts...)
+				foundItems, err := l.gw.Search(ctx, sub.Term, opts...)
 				if err != nil {
 					log.Error("failed to search for items", "error", err)
 					continue
 				}
 
-				if len(items) == 0 {
+				newItems := make([]gw.Item, 0, len(foundItems))
+				for _, item := range foundItems {
+					tracked, err := l.db.IsItemTracked(ctx, sqlgen.IsItemTrackedParams{
+						SubscriptionID: sub.ID,
+						GoodwillID:     item.ItemID,
+					})
+					if err != nil {
+						log.Error("failed to check if item is tracked", "error", err)
+						continue
+					}
+
+					if tracked != 1 {
+						newItems = append(newItems, item)
+					}
+				}
+
+				if len(newItems) == 0 {
 					log.Info("no new items found")
 					continue
 				}
 
-				log.Info("new items found", "count", len(items))
+				log.Info("new items found", "count", len(newItems))
 
-				for _, item := range items {
+				for _, item := range newItems {
 					_, err := l.db.CreateItem(ctx, item.NewCreateItemParams(sub))
 					if err != nil {
 						log.Error("failed to create item", "error", err)
@@ -72,7 +88,7 @@ func (l *Looper) NotifyNewItems(ctx context.Context) {
 					}
 				}
 
-				if err := l.bot.NotifyNewItems(sub, items); err != nil {
+				if err := l.bot.NotifyNewItems(sub, newItems); err != nil {
 					log.Error("failed to notify new items", "error", err)
 				}
 
