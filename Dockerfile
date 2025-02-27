@@ -16,5 +16,7 @@ RUN go build
 FROM alpine
 
 COPY --from=build /build/gw-bot /usr/bin/gw-bot
+RUN apk add --no-cache tzdata
+ENV TZ=Etc/UTC
 
 ENTRYPOINT [ "/usr/bin/gw-bot" ]

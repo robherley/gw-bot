@@ -38,6 +38,10 @@ func (i *Item) HasBuyNow() bool {
 	return i.ListingType == 1 || i.ListingType == 2
 }
 
+func (i *Item) Ended() bool {
+	return time.Until(i.EndTime) <= 0
+}
+
 func (i *Item) Kind() string {
 	kinds := make([]string, 0)
 

@@ -4,7 +4,6 @@ go 1.23.1
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1
-	github.com/davecgh/go-spew v1.1.1
 	github.com/google/uuid v1.6.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lmittmann/tint v1.0.5

@@ -186,6 +186,10 @@ func (cmd *Subscribe) seedItems(ctx context.Context, sub sqlgen.Subscription) (i
 	}
 
 	for _, item := range items {
+		if item.Ended() {
+			continue
+		}
+
 		_, err := cmd.db.CreateItem(ctx, item.NewCreateItemParams(sub))
 		if err != nil {
 			return 0, err
