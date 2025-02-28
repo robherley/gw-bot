@@ -95,6 +95,7 @@ func (i *Item) UnmarshalJSON(data []byte) error {
 		ImageServer        string `json:"imageServer"`
 		ImageURLString     string `json:"imageUrlString"`
 		CategoryParentList string `json:"categoryParentList"`
+		NumberOfBids       int64  `json:"numberOfBids"`
 		*Alias
 	}{
 		Alias: (*Alias)(i),
@@ -123,6 +124,10 @@ func (i *Item) UnmarshalJSON(data []byte) error {
 
 		i.CategoryName = categories[len(categories)-1]
 		i.CategoryFullName = strings.Join(categories, " > ")
+	}
+
+	if tmp.NumberOfBids > 0 {
+		i.NumBids = tmp.NumberOfBids
 	}
 
 	return nil
