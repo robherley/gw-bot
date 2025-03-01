@@ -82,7 +82,7 @@ func (q *Queries) DeleteItemsInSubscriptions(ctx context.Context, ids []string) 
 
 const findItemsEndingSoon = `-- name: FindItemsEndingSoon :many
 SELECT id, subscription_id, goodwill_id, created_at, started_at, ends_at, sent_final FROM items
-WHERE ends_at < datetime('now', '+5 minutes') AND sent_final = FALSE
+WHERE ends_at < datetime('now', '+10 minutes') AND sent_final = FALSE
 LIMIT 100
 `
 

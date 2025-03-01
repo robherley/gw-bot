@@ -12,7 +12,7 @@ SELECT EXISTS (
 
 -- name: FindItemsEndingSoon :many
 SELECT * FROM items
-WHERE ends_at < datetime('now', '+5 minutes') AND sent_final = FALSE
+WHERE ends_at < datetime('now', '+10 minutes') AND sent_final = FALSE
 LIMIT 100;
 
 -- name: SetItemSentFinal :exec
