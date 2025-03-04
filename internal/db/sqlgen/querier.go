@@ -11,7 +11,7 @@ import (
 type Querier interface {
 	CreateItem(ctx context.Context, arg CreateItemParams) (Item, error)
 	CreateSubscription(ctx context.Context, arg CreateSubscriptionParams) (Subscription, error)
-	DeleteExpiredItems(ctx context.Context) (int64, error)
+	DeleteExpiredItems(ctx context.Context) error
 	DeleteItemsInSubscriptions(ctx context.Context, ids []string) error
 	DeleteUserSubscriptions(ctx context.Context, arg DeleteUserSubscriptionsParams) error
 	FindItemsEndingSoon(ctx context.Context) ([]Item, error)

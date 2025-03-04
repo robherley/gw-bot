@@ -20,11 +20,10 @@ UPDATE items
 SET sent_final = TRUE
 WHERE id IN (sqlc.slice('ids'));
 
--- name: DeleteExpiredItems :one
+-- name: DeleteExpiredItems :exec
 DELETE FROM items
 WHERE ends_at < datetime('now', '-1 day')
-LIMIT 1000
-RETURNING COUNT(*);
+LIMIT 1000;
 
 -- name: DeleteItemsInSubscriptions :exec
 DELETE FROM items

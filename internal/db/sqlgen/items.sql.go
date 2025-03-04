@@ -46,18 +46,15 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 	return i, err
 }
 
-const deleteExpiredItems = `-- name: DeleteExpiredItems :one
+const deleteExpiredItems = `-- name: DeleteExpiredItems :exec
 DELETE FROM items
 WHERE ends_at < datetime('now', '-1 day')
 LIMIT 1000
-RETURNING COUNT(*)
 `
 
-func (q *Queries) DeleteExpiredItems(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteExpiredItems)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+func (q *Queries) DeleteExpiredItems(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredItems)
+	return err
 }
 
 const deleteItemsInSubscriptions = `-- name: DeleteItemsInSubscriptions :exec

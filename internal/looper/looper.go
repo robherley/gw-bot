@@ -124,6 +124,8 @@ func (l *Looper) NotifyEndingSoonItems(ctx context.Context) {
 			}
 
 			for subID, items := range sub2items {
+				log := log.With("subscription_id", subID)
+
 				time.Sleep(2 * time.Second)
 
 				sub, err := l.db.FindSubscription(ctx, subID)
@@ -132,6 +134,7 @@ func (l *Looper) NotifyEndingSoonItems(ctx context.Context) {
 					continue
 				}
 
+				log.Info("found ending soon items", "count", len(items))
 				if err := l.bot.NotifyEndingSoonItems(sub, items); err != nil {
 					log.Error("failed to notify ending soon items", "error", err)
 				}
@@ -161,11 +164,11 @@ func (l *Looper) Cleanup(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			n, err := l.db.DeleteExpiredItems(ctx)
+			err := l.db.DeleteExpiredItems(ctx)
 			if err != nil {
 				log.Error("failed to delete expired items", "error", err)
 			}
-			log.Info("deleted expired items", "count", n)
+			log.Info("deleted expired items")
 		case <-ctx.Done():
 			return
 		}
