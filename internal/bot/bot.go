@@ -176,7 +176,9 @@ func (b *Bot) NotifyNewItems(sub sqlgen.Subscription, items []gw.Item) error {
 	for _, chunk := range chunks {
 		embeds := make([]*discordgo.MessageEmbed, 0, len(chunk))
 		for _, item := range chunk {
-			embeds = append(embeds, b.ItemToEmbed(item))
+			embed := b.ItemToEmbed(item)
+			embed.Color = 0x00CB74
+			embeds = append(embeds, embed)
 		}
 
 		_, err := b.session.ChannelMessageSendComplex(dm.ID, &discordgo.MessageSend{
@@ -216,7 +218,9 @@ func (b *Bot) NotifyEndingSoonItems(sub sqlgen.Subscription, items []sqlgen.Item
 	for _, chunk := range chunks {
 		embeds := make([]*discordgo.MessageEmbed, 0, len(chunk))
 		for _, item := range chunk {
-			embeds = append(embeds, b.ItemToEmbed(*item))
+			embed := b.ItemToEmbed(*item)
+			embed.Color = 0xF24E43
+			embeds = append(embeds, embed)
 		}
 
 		_, err := b.session.ChannelMessageSendComplex(dm.ID, &discordgo.MessageSend{
