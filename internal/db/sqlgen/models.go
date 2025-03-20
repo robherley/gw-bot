@@ -26,4 +26,5 @@ type Subscription struct {
 	MaxPrice       *int64
 	CategoryID     *int64
 	LastNotifiedAt time.Time
+	NotifyMinutes  int64
 }

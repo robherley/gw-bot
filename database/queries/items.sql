@@ -11,8 +11,9 @@ SELECT EXISTS (
 ) AS is_tracked;
 
 -- name: FindItemsEndingSoon :many
-SELECT * FROM items
-WHERE ends_at < datetime('now', '+10 minutes') AND sent_final = FALSE
+SELECT i.* FROM items i
+JOIN subscriptions s ON i.subscription_id = s.id
+WHERE i.ends_at < datetime('now', '+' || s.notify_minutes || ' minutes') AND i.sent_final = FALSE
 LIMIT 100;
 
 -- name: SetItemSentFinal :exec

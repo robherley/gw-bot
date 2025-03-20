@@ -33,6 +33,7 @@ func (cmd *Subscribe) Description() string {
 func (cmd *Subscribe) Options() []*discordgo.ApplicationCommandOption {
 	termMinLength := 1
 	termMaxLength := 100
+	notifyMinValue := float64(1)
 	return []*discordgo.ApplicationCommandOption{
 		{
 			Type:        discordgo.ApplicationCommandOptionString,
@@ -54,6 +55,13 @@ func (cmd *Subscribe) Options() []*discordgo.ApplicationCommandOption {
 			Description: "Maximum price to alert on",
 			Required:    false,
 		},
+		{
+			Type:        discordgo.ApplicationCommandOptionInteger,
+			Name:        "notify",
+			Description: "How many minutes before the auction ends to send a notification",
+			Required:    false,
+			MinValue:    &notifyMinValue,
+		},
 		// TODO: category
 	}
 }
@@ -69,9 +77,10 @@ func (cmd *Subscribe) Handle(ctx context.Context, s *discordgo.Session, i *disco
 		data := i.ApplicationCommandData()
 
 		var (
-			term     string
-			minPrice *int64
-			maxPrice *int64
+			term          string
+			minPrice      *int64
+			maxPrice      *int64
+			notifyMinutes int64 = 10
 		)
 
 		for _, option := range data.Options {
@@ -84,6 +93,8 @@ func (cmd *Subscribe) Handle(ctx context.Context, s *discordgo.Session, i *disco
 			case "max":
 				max := option.IntValue()
 				maxPrice = &max
+			case "notify":
+				notifyMinutes = option.IntValue()
 			}
 		}
 
@@ -113,11 +124,12 @@ func (cmd *Subscribe) Handle(ctx context.Context, s *discordgo.Session, i *disco
 		}
 
 		sub, err := cmd.db.CreateSubscription(ctx, sqlgen.CreateSubscriptionParams{
-			ID:       db.NewID(),
-			UserID:   userID,
-			Term:     term,
-			MinPrice: minPrice,
-			MaxPrice: maxPrice,
+			ID:            db.NewID(),
+			UserID:        userID,
+			Term:          term,
+			MinPrice:      minPrice,
+			MaxPrice:      maxPrice,
+			NotifyMinutes: notifyMinutes,
 		})
 
 		if err != nil {

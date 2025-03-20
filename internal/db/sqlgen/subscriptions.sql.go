@@ -11,17 +11,18 @@ import (
 )
 
 const createSubscription = `-- name: CreateSubscription :one
-INSERT INTO subscriptions (id, user_id, term, last_notified_at, min_price, max_price)
-VALUES (?, ?, ?, 0, ?, ?)
-RETURNING id, user_id, term, min_price, max_price, category_id, last_notified_at
+INSERT INTO subscriptions (id, user_id, term, last_notified_at, min_price, max_price, notify_minutes)
+VALUES (?, ?, ?, 0, ?, ?, ?)
+RETURNING id, user_id, term, min_price, max_price, category_id, last_notified_at, notify_minutes
 `
 
 type CreateSubscriptionParams struct {
-	ID       string
-	UserID   string
-	Term     string
-	MinPrice *int64
-	MaxPrice *int64
+	ID            string
+	UserID        string
+	Term          string
+	MinPrice      *int64
+	MaxPrice      *int64
+	NotifyMinutes int64
 }
 
 func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscriptionParams) (Subscription, error) {
@@ -31,6 +32,7 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 		arg.Term,
 		arg.MinPrice,
 		arg.MaxPrice,
+		arg.NotifyMinutes,
 	)
 	var i Subscription
 	err := row.Scan(
@@ -41,6 +43,7 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 		&i.MaxPrice,
 		&i.CategoryID,
 		&i.LastNotifiedAt,
+		&i.NotifyMinutes,
 	)
 	return i, err
 }
@@ -72,7 +75,7 @@ func (q *Queries) DeleteUserSubscriptions(ctx context.Context, arg DeleteUserSub
 }
 
 const findSubscription = `-- name: FindSubscription :one
-SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at FROM subscriptions
+SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at, notify_minutes FROM subscriptions
 WHERE id = ?
 `
 
@@ -87,12 +90,13 @@ func (q *Queries) FindSubscription(ctx context.Context, id string) (Subscription
 		&i.MaxPrice,
 		&i.CategoryID,
 		&i.LastNotifiedAt,
+		&i.NotifyMinutes,
 	)
 	return i, err
 }
 
 const findSubscriptionsToNotify = `-- name: FindSubscriptionsToNotify :many
-SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at FROM subscriptions
+SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at, notify_minutes FROM subscriptions
 WHERE last_notified_at < datetime('now', '-5 minutes')
 LIMIT 100
 `
@@ -114,6 +118,7 @@ func (q *Queries) FindSubscriptionsToNotify(ctx context.Context) ([]Subscription
 			&i.MaxPrice,
 			&i.CategoryID,
 			&i.LastNotifiedAt,
+			&i.NotifyMinutes,
 		); err != nil {
 			return nil, err
 		}
@@ -129,7 +134,7 @@ func (q *Queries) FindSubscriptionsToNotify(ctx context.Context) ([]Subscription
 }
 
 const findUserSubscriptions = `-- name: FindUserSubscriptions :many
-SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at FROM subscriptions
+SELECT id, user_id, term, min_price, max_price, category_id, last_notified_at, notify_minutes FROM subscriptions
 WHERE user_id = ?
 `
 
@@ -150,6 +155,7 @@ func (q *Queries) FindUserSubscriptions(ctx context.Context, userID string) ([]S
 			&i.MaxPrice,
 			&i.CategoryID,
 			&i.LastNotifiedAt,
+			&i.NotifyMinutes,
 		); err != nil {
 			return nil, err
 		}

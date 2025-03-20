@@ -52,7 +52,7 @@ func (cmd *Subscriptions) Handle(ctx context.Context, s *discordgo.Session, i *d
 			builder.WriteString(sub.Term)
 
 			if sub.MinPrice != nil || sub.MaxPrice != nil {
-				builder.WriteString("$")
+				builder.WriteString(" $")
 				if sub.MinPrice != nil {
 					builder.WriteString(strconv.FormatInt(*sub.MinPrice, 10))
 				} else {
@@ -66,6 +66,10 @@ func (cmd *Subscriptions) Handle(ctx context.Context, s *discordgo.Session, i *d
 				}
 				builder.WriteString(" ")
 			}
+
+			builder.WriteString(" ⏲️ ")
+			builder.WriteString(strconv.FormatInt(sub.NotifyMinutes, 10))
+			builder.WriteString("m")
 
 			builder.WriteString("\n")
 		}
