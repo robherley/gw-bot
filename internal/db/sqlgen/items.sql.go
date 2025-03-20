@@ -49,7 +49,6 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 const deleteExpiredItems = `-- name: DeleteExpiredItems :exec
 DELETE FROM items
 WHERE ends_at < datetime('now', '-1 day')
-LIMIT 1000
 `
 
 func (q *Queries) DeleteExpiredItems(ctx context.Context) error {
