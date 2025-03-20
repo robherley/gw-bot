@@ -22,8 +22,7 @@ WHERE id IN (sqlc.slice('ids'));
 
 -- name: DeleteExpiredItems :exec
 DELETE FROM items
-WHERE ends_at < datetime('now', '-1 day')
-LIMIT 1000;
+WHERE ends_at < datetime('now', '-1 day');
 
 -- name: DeleteItemsInSubscriptions :exec
 DELETE FROM items

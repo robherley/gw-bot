@@ -98,6 +98,20 @@ func (cmd *Subscribe) Handle(ctx context.Context, s *discordgo.Session, i *disco
 			}
 		}
 
+		subs, err := cmd.db.FindUserSubscriptions(ctx, userID)
+		if err != nil {
+			return err
+		}
+
+		if len(subs) >= 25 {
+			return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "⛔ You can only have up to 25 subscriptions at a time. Use `/subscriptions` to see your current subscriptions and `/unsubscribe` to remove one.",
+				},
+			})
+		}
+
 		sub, err := cmd.db.CreateSubscription(ctx, sqlgen.CreateSubscriptionParams{
 			ID:       db.NewID(),
 			UserID:   userID,
