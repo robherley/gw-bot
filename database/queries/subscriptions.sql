@@ -1,6 +1,6 @@
 -- name: CreateSubscription :one
-INSERT INTO subscriptions (id, user_id, term, last_notified_at, min_price, max_price)
-VALUES (?, ?, ?, 0, ?, ?)
+INSERT INTO subscriptions (id, user_id, term, last_notified_at, min_price, max_price, notify_minutes)
+VALUES (?, ?, ?, 0, ?, ?, ?)
 RETURNING *;
 
 -- name: FindSubscription :one
